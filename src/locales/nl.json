@@ -1513,7 +1513,9 @@
       "title": "Kaarteffecten",
       "help": "Laserrand en live-gloed op live kaarten. Uit bij 'minder beweging'.",
       "steam": "Steam-status tonen",
-      "steamHelp": "Toont wat je speelt via je Steam-link (profiel moet publiek zijn op Steam)."
+      "steamHelp": "Toont wat je speelt via je Steam-link (profiel moet publiek zijn op Steam).",
+      "lastfm": "Last.fm 'Luistert nu' tonen",
+      "lastfmHelp": "Toont het nummer dat je nu scrobblet via je Last.fm-link (Spotify, Apple Music, YouTube Music, Deezer, Tidal, SoundCloud)."
     }
   },
   "steam": {
@@ -1533,5 +1535,9 @@
   "profile.upcomingEvents": "Aankomende evenementen",
   "profile.eventDetails": "Details",
   "type.steam": "Steam-profiel",
-  "type.steam.desc": "Deel je Steam-profiel met één scan."
+  "type.steam.desc": "Deel je Steam-profiel met één scan.",
+  "lastfm": {
+    "now": "Luistert nu",
+    "label": "Last.fm-nummer"
+  }
 }

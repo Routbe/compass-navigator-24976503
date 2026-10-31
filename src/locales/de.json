@@ -1513,7 +1513,9 @@
       "title": "Karteneffekte",
       "help": "Laserrand und Live-Glühen auf Live-Karten. Aus bei reduzierter Bewegung.",
       "steam": "Steam-Status zeigen",
-      "steamHelp": "Zeigt, was du spielst, über deinen Steam-Link (Steam-Profil muss öffentlich sein)."
+      "steamHelp": "Zeigt, was du spielst, über deinen Steam-Link (Steam-Profil muss öffentlich sein).",
+      "lastfm": "Last.fm „Hört gerade“ anzeigen",
+      "lastfmHelp": "Zeigt den Titel, den du über deinen Last.fm-Link scrobbelst."
     }
   },
   "steam": {
@@ -1533,5 +1535,9 @@
   "profile.upcomingEvents": "Kommende Events",
   "profile.eventDetails": "Details",
   "type.steam": "Steam-Profil",
-  "type.steam.desc": "Teile dein Steam-Profil mit einem Scan."
+  "type.steam.desc": "Teile dein Steam-Profil mit einem Scan.",
+  "lastfm": {
+    "now": "Hört gerade",
+    "label": "Last.fm-Titel"
+  }
 }

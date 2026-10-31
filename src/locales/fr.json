@@ -1513,7 +1513,9 @@
       "title": "Effets de carte",
       "help": "Bordure laser et halo en direct. Désactivés avec mouvement réduit.",
       "steam": "Afficher le statut Steam",
-      "steamHelp": "Affiche votre jeu via votre lien Steam (profil Steam public requis)."
+      "steamHelp": "Affiche votre jeu via votre lien Steam (profil Steam public requis).",
+      "lastfm": "Afficher « En écoute » Last.fm",
+      "lastfmHelp": "Affiche le morceau que vous scrobblez via votre lien Last.fm."
     }
   },
   "steam": {
@@ -1533,5 +1535,9 @@
   "profile.upcomingEvents": "Événements à venir",
   "profile.eventDetails": "Détails",
   "type.steam": "Profil Steam",
-  "type.steam.desc": "Partagez votre profil Steam en un scan."
+  "type.steam.desc": "Partagez votre profil Steam en un scan.",
+  "lastfm": {
+    "now": "En écoute",
+    "label": "Morceau Last.fm"
+  }
 }

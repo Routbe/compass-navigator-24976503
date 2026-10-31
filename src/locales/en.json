@@ -1513,7 +1513,9 @@
       "title": "Card effects",
       "help": "Laser border and live glow on live cards. Off with reduced motion.",
       "steam": "Show Steam status",
-      "steamHelp": "Shows what you play via your Steam link (Steam profile must be public)."
+      "steamHelp": "Shows what you play via your Steam link (Steam profile must be public).",
+      "lastfm": "Show Last.fm 'Listening now'",
+      "lastfmHelp": "Shows the track you're scrobbling via your Last.fm link (Spotify, Apple Music, YouTube Music, Deezer, Tidal, SoundCloud)."
     }
   },
   "steam": {
@@ -1533,5 +1535,9 @@
   "profile.upcomingEvents": "Upcoming events",
   "profile.eventDetails": "Details",
   "type.steam": "Steam profile",
-  "type.steam.desc": "Share your Steam profile in one scan."
+  "type.steam.desc": "Share your Steam profile in one scan.",
+  "lastfm": {
+    "now": "Listening now",
+    "label": "Last.fm track"
+  }
 }
