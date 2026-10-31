@@ -7,7 +7,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { RoutLogo } from "@/components/RoutLogo";
-import { Check, Eye, KeyRound, Loader2, Mail, ShieldCheck, User } from "lucide-react";
+import { BadgeCheck, Check, Eye, Fingerprint, IdCard, KeyRound, Loader2, Lock, Mail, ShieldCheck, User } from "lucide-react";
+import { OPTIONAL_SCOPES } from "@/lib/oauth/scope-rules";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -86,6 +87,10 @@ const SCOPE_TEXT: Record<string, { icon: typeof User; text: string }> = {
     icon: ShieldCheck,
     text: "auth.scope.linked_accounts",
   },
+  "sybil:verify": { icon: Fingerprint, text: "auth.scope.sybil" },
+  "profile:read": { icon: User, text: "auth.scope.profileRead" },
+  "identity:legal_name": { icon: IdCard, text: "auth.scope.legalName" },
+  "identity:national_id": { icon: Lock, text: "auth.scope.nationalId" },
 };
 
 const PROVIDER_LABEL: Record<string, string> = {
@@ -118,6 +123,8 @@ function AuthorizePage() {
   const [busy, setBusy] = useState(false);
   const [richOptIn, setRichOptIn] = useState(false);
   const [emailChoice, setEmailChoice] = useState<string | null>(null);
+  // Optional identity scopes start off for legal data, on for the rest.
+  const [declined, setDeclined] = useState<string[]>(["identity:legal_name"]);
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
   const [code, setCode] = useState("");
   const [codeError, setCodeError] = useState<string | null>(null);
@@ -221,7 +228,7 @@ function AuthorizePage() {
   async function choose(allow: boolean) {
     setBusy(true);
     try {
-      const result = await decide({ data: { ...payload, allow, richIdentityOptIn: richOptIn, emailChoice: emailChoice ?? prompt?.emailChoice } });
+      const result = await decide({ data: { ...payload, allow, richIdentityOptIn: richOptIn, emailChoice: emailChoice ?? prompt?.emailChoice, declinedScopes: declined } });
       if ("redirectTo" in result) window.location.href = result.redirectTo;
       else if (result.error.startsWith(t("auth.confirm"))) {
         setStepUpDone(false);
@@ -373,11 +380,32 @@ function AuthorizePage() {
             return (
               <li key={scope} className="flex items-start gap-3 text-sm text-muted-foreground">
                 <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-                <span>{item ? t(item.text) : scope}</span>
+                <span className="flex-1">{item ? t(item.text, { app: appName }) : scope}</span>
+                {OPTIONAL_SCOPES.includes(scope) && scope !== "identity:national_id" && (
+                  <Checkbox
+                    aria-label={item ? t(item.text, { app: appName }) : scope}
+                    checked={!declined.includes(scope)}
+                    onCheckedChange={(v) => setDeclined((d) => (v ? d.filter((x) => x !== scope) : [...d, scope]))}
+                  />
+                )}
+                {scope === "identity:national_id" && (
+                  <Checkbox
+                    aria-label={t("auth.scope.nationalId")}
+                    disabled={!prompt.trustedKycPartner}
+                    checked={prompt.trustedKycPartner === true && !declined.includes(scope)}
+                    onCheckedChange={(v) => setDeclined((d) => (v ? d.filter((x) => x !== scope) : [...d, scope]))}
+                  />
+                )}
               </li>
             );
           })}
         </ul>
+
+        {prompt.trustedKycPartner && (
+          <p className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+            <BadgeCheck className="h-4 w-4" aria-hidden /> {t("auth.consent.trustedPartner")}
+          </p>
+        )}
 
         {scopes.includes("email") && (prompt.emailOptions?.length ?? 0) > 1 && (
           <fieldset className="mt-4 space-y-2 rounded-2xl border border-border p-3 text-sm">
