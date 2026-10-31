@@ -1,7 +1,7 @@
 /** Pure rules for the OAuth client_credentials grant (machine-to-machine). */
 export const M2M_TOKEN_TTL_SEC = 900;
 /** Identity scopes describe a person; a machine token can never carry them. */
-const USER_SCOPES = new Set(["openid", "profile", "email", "offline_access", "phone", "address"]);
+const USER_SCOPES = new Set(["openid", "profile", "email", "offline_access", "phone", "address", "linked_accounts", "sybil:verify", "profile:read", "identity:legal_name", "identity:national_id"]);
 
 /** Requested scopes that the client owns and that are not user scopes; null = invalid_scope. */
 export function m2mScopes(requested: string | null, clientScopes: string[]): string[] | null {
