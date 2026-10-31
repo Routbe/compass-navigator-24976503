@@ -167,6 +167,20 @@ export const rotateOAuthSecret = createServerFn({ method: "POST" })
     });
   });
 
+/** Back-channel email sync webhook (https only, no internal hosts). Returns the signing secret once. */
+export const setOAuthBackchannelWebhook = createServerFn({ method: "POST" })
+  .middleware([requireDeveloperAccess])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid(), url: z.string().url().max(2048).nullable() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertVerified(context.userId);
+    const { sql } = await import("@/lib/neon");
+    const rows = (await sql`select client_id from public.oauth_clients where id = ${data.id} and owner_user_id = ${context.userId} limit 1`) as Record<string, unknown>[];
+    const clientId = rows[0]?.["client_id"];
+    if (typeof clientId !== "string") throw new Error("App niet gevonden.");
+    const { setBackchannelWebhook } = await import("@/lib/auth/email-sync-webhook.server");
+    return setBackchannelWebhook(clientId, data.url);
+  });
+
 export const getOAuthClientInsights = createServerFn({ method: "POST" })
   .middleware([requireDeveloperAccess])
   .inputValidator((data: unknown) => idSchema.parse(data))
