@@ -24,7 +24,13 @@ async function secretPepper(): Promise<string> {
 }
 import { canonicalAppUrl } from "@/lib/app-url";
 
-export const SUPPORTED_SCOPES = ["openid", "profile", "email", "linked_accounts", "offline_access"] as const;
+export const SUPPORTED_SCOPES = ["openid", "profile", "email", "linked_accounts", "offline_access", "sybil:verify", "profile:read", "identity:legal_name", "identity:national_id"] as const;
+
+/** Trusted KYC partners may request identity:national_id (set by ROUT admins only, db/0139). */
+export async function isTrustedKycPartner(clientId: string): Promise<boolean> {
+  const rows = (await sql`select is_trusted_kyc_partner from public.oauth_clients where client_id = ${clientId} limit 1`) as Row[];
+  return rows[0]?.["is_trusted_kyc_partner"] === true;
+}
 export type Scope = (typeof SUPPORTED_SCOPES)[number];
 
 const CODE_TTL_MS = 60 * 1000;
@@ -627,6 +633,7 @@ export async function exchangeAuthorizationCode(input: {
     exp: now + ttl,
     token_use: "access",
     jti: randomToken(16),
+    ...(row["acr"] ? { acr: String(row["acr"]) } : {}),
   });
   const subject = await subjectFor(client, userId, String(row["redirect_uri"]));
   let refreshToken: string | undefined;
@@ -767,7 +774,7 @@ export async function isVerifiedDeveloper(userId: string): Promise<boolean> {
 /** Verifieert een door ROUT uitgegeven access-token en geeft sub + scopes terug. */
 export async function verifyAccessToken(
   token: string,
-): Promise<{ sub: string; userId: string; scopes: string[]; clientId: string | null }> {
+): Promise<{ sub: string; userId: string; scopes: string[]; clientId: string | null; acr: string | null }> {
   const parts = token.split(".");
   if (parts.length !== 3) throw new OAuthError("invalid_token", "Ongeldig token.");
   const [headerPart, payloadPart, signaturePart] = parts as [string, string, string];
@@ -807,6 +814,7 @@ export async function verifyAccessToken(
     sub: String(payload["sub"]), userId,
     scopes: String(payload["scope"]).split(" ").filter(Boolean),
     clientId: String(payload["aud"]),
+    acr: typeof payload["acr"] === "string" ? payload["acr"] : null,
   };
 }
 
