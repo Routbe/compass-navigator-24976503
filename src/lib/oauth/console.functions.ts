@@ -310,6 +310,7 @@ export type AuthorizePrompt = {
   alreadyGranted?: boolean;
   /** Strict flow / prompt=login / max_age / acr_values → extra code required. */
   requiresStepUp?: boolean;
+  trustedKycPartner?: boolean;
   /** App asks (optionally) for public activity. */
   richIdentity?: boolean;
 };
