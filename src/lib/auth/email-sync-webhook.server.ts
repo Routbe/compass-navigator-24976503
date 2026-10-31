@@ -65,7 +65,7 @@ export async function dispatchEmailUpdated(userId: string, changes: BulkChange[]
     try {
       const secret = await openWebhookSecret(clientId, String(r["backchannel_webhook_secret_sealed"]), String(r["backchannel_webhook_secret_iv"]));
       const now = Math.floor(Date.now() / 1000);
-      const body = JSON.stringify(emailUpdatedEvent(await getPairwiseSubject(userId, clientId), change.previousEmail, change.newEmail, now));
+      const body = JSON.stringify(emailUpdatedEvent(await getPairwiseSubject(userId, clientId), change.previousEmail || null, change.newEmail, now));
       const res = await fetch(url, {
         method: "POST",
         redirect: "manual",
