@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { ConsoleCard, ConsolePage } from "@/components/console/ConsolePage";
 import { errorText } from "@/components/console/console-data";
 import { useAppPage } from "@/components/console/useAppPage";
-import { rotateOAuthSecret } from "@/lib/oauth/console.functions";
+import { rotateOAuthSecret, setOAuthBackchannelWebhook } from "@/lib/oauth/console.functions";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -38,6 +39,9 @@ function CredentialsPage() {
   const rotate = useServerFn(rotateOAuthSecret);
   const [secret, setSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const saveHook = useServerFn(setOAuthBackchannelWebhook);
+  const [hookUrl, setHookUrl] = useState("");
+  const [hookSecret, setHookSecret] = useState<string | null>(null);
   const origin = typeof window === "undefined" ? "https://rout.be" : window.location.origin;
 
   return (
@@ -85,6 +89,29 @@ function CredentialsPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+        </div>
+      </ConsoleCard>
+      <ConsoleCard title="E-mailwijzigingen (back-channel)">
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            ROUT stuurt een ondertekend <code>user.email_updated</code>-event (HMAC-SHA256, header <code>X-Rout-Signature: t=…,v1=…</code>) naar deze https-URL wanneer een gebruiker het e-mailadres voor je app wijzigt.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Input className="min-w-0 flex-1" placeholder="https://jouwapp.be/webhooks/rout" value={hookUrl} onChange={(e) => setHookUrl(e.target.value)} />
+            <Button disabled={busy || !hookUrl.startsWith("https://")} onClick={async () => {
+              setBusy(true);
+              try { setHookSecret((await saveHook({ data: { id: app.id, url: hookUrl.trim() } })).secret); toast.success("Webhook opgeslagen"); }
+              catch (e) { toast.error(errorText(e, "Opslaan mislukt.")); }
+              finally { setBusy(false); }
+            }}>Opslaan</Button>
+            <Button variant="outline" disabled={busy} onClick={async () => {
+              setBusy(true);
+              try { await saveHook({ data: { id: app.id, url: null } }); setHookSecret(null); toast.success("Webhook verwijderd"); }
+              catch (e) { toast.error(errorText(e, "Verwijderen mislukt.")); }
+              finally { setBusy(false); }
+            }}>Verwijderen</Button>
+          </div>
+          {hookSecret && <CopyField label="Webhook-secret (wordt maar één keer getoond)" value={hookSecret} />}
         </div>
       </ConsoleCard>
       <ConsoleCard title="Endpoints">
