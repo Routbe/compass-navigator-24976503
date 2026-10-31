@@ -46,3 +46,94 @@ export const revokeConnectedApp = createServerFn({ method: "POST" })
     ]);
     return { ok: true as const };
   });
+
+export type AppEmailState = {
+  clientId: string;
+  assignedEmail: string | null;
+  choiceId: string;
+  options: { id: string; source: "primary" | "alias" | "relay"; email: string }[];
+};
+
+/** Per-app email choice for every connected app, plus the apps still on an old address. */
+export const listAppEmails = createServerFn({ method: "GET" })
+  .middleware([requireAuth])
+  .handler(async ({ context }): Promise<{ primary: string | null; apps: AppEmailState[]; stale: string[] }> => {
+    const { sql } = await import("@/lib/neon");
+    const { emailOptionsOf, appEmailFor } = await import("./email-broker.server");
+    const { staleAssignments } = await import("./backchannel");
+    const consents = (await sql`select client_id from public.oauth_consents
+      where user_id = ${context.userId} and revoked_at is null limit 200`) as Record<string, unknown>[];
+    const rows = (await sql`select client_id, source, assigned_email from public.app_email_assignments
+      where user_id = ${context.userId}`) as Record<string, unknown>[];
+    const u = ((await sql`select email from public.users where id = ${context.userId} limit 1`) as Record<string, unknown>[])[0];
+    const primary = (u?.["email"] as string | null) ?? null;
+    const apps: AppEmailState[] = [];
+    for (const c of consents) {
+      const clientId = String(c["client_id"]);
+      const options = await emailOptionsOf(context.userId, clientId).catch(() => []);
+      const row = rows.find((r) => r["client_id"] === clientId);
+      const current = row ? await appEmailFor(context.userId, clientId).catch(() => null) : null;
+      apps.push({
+        clientId,
+        assignedEmail: (row?.["assigned_email"] as string | null) ?? primary,
+        choiceId: current?.id ?? "primary",
+        options: options.map((o) => ({ id: o.id, source: o.source, email: o.email })),
+      });
+    }
+    const stale = staleAssignments(
+      rows.map((r) => ({ clientId: String(r["client_id"]), source: String(r["source"]), assignedEmail: String(r["assigned_email"]) })),
+      primary,
+    ).filter((r) => r.source === "primary").map((r) => r.clientId);
+    return { primary, apps, stale };
+  });
+
+/** Inline choice for one app; notifies the app's back-channel webhook when the address changes. */
+export const setAppEmail = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) => z.object({ clientId: z.string().min(1).max(200), choiceId: z.string().min(1).max(64) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { sql } = await import("@/lib/neon");
+    const consent = await sql`select 1 from public.oauth_consents where user_id = ${context.userId} and client_id = ${data.clientId} and revoked_at is null limit 1`;
+    if (!consent.length) throw new Error("Deze app is niet met je account verbonden.");
+    const before = ((await sql`select assigned_email from public.app_email_assignments where user_id = ${context.userId} and client_id = ${data.clientId}`) as Record<string, unknown>[])[0];
+    const { assignAppEmail } = await import("./email-broker.server");
+    await assignAppEmail(context.userId, data.clientId, data.choiceId);
+    const after = ((await sql`select assigned_email from public.app_email_assignments where user_id = ${context.userId} and client_id = ${data.clientId}`) as Record<string, unknown>[])[0];
+    const prev = (before?.["assigned_email"] as string | undefined) ?? null;
+    const next = (after?.["assigned_email"] as string | undefined) ?? null;
+    if (next && prev !== next) {
+      const { later } = await import("@/lib/site-mail.server");
+      const { dispatchEmailUpdated } = await import("@/lib/auth/email-sync-webhook.server");
+      later(() => dispatchEmailUpdated(context.userId, [{ clientId: data.clientId, previousEmail: prev ?? "", newEmail: next }]));
+    }
+    return { ok: true as const };
+  });
+
+/** Bulk wizard: moves the selected apps to the current primary address and notifies them. */
+export const bulkUpdateAppEmails = createServerFn({ method: "POST" })
+  .middleware([requireAuth])
+  .inputValidator((d) => z.object({ clientIds: z.array(z.string().min(1).max(200)).min(1).max(200) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { sql } = await import("@/lib/neon");
+    const { planBulkEmailUpdate } = await import("./backchannel");
+    const u = ((await sql`select email from public.users where id = ${context.userId} limit 1`) as Record<string, unknown>[])[0];
+    const primary = (u?.["email"] as string | null) ?? null;
+    if (!primary) throw new Error("Je account heeft geen primair e-mailadres.");
+    const consented = ((await sql`select client_id from public.oauth_consents where user_id = ${context.userId}
+      and revoked_at is null and client_id = any(${data.clientIds})`) as Record<string, unknown>[]).map((r) => String(r["client_id"]));
+    const rows = (await sql`select client_id, source, assigned_email from public.app_email_assignments
+      where user_id = ${context.userId} and client_id = any(${consented})`) as Record<string, unknown>[];
+    const known = rows.map((r) => ({ clientId: String(r["client_id"]), source: String(r["source"]), assignedEmail: String(r["assigned_email"]) }));
+    // Apps without a row yet get one too (previous address unknown = empty).
+    for (const id of consented) if (!known.some((k) => k.clientId === id)) known.push({ clientId: id, source: "primary", assignedEmail: "" });
+    const changes = planBulkEmailUpdate(known, consented, primary);
+    if (changes.length) {
+      await sql.transaction(changes.map((c) => sql`insert into public.app_email_assignments (user_id, client_id, source, alias_id, assigned_email, updated_at)
+        values (${context.userId}, ${c.clientId}, 'primary', null, ${c.newEmail}, now())
+        on conflict (user_id, client_id) do update set source = 'primary', alias_id = null, assigned_email = excluded.assigned_email, updated_at = now()`));
+      const { later } = await import("@/lib/site-mail.server");
+      const { dispatchEmailUpdated } = await import("@/lib/auth/email-sync-webhook.server");
+      later(() => dispatchEmailUpdated(context.userId, changes.map((c) => ({ ...c, previousEmail: c.previousEmail || "" }))));
+    }
+    return { updated: changes.length };
+  });
