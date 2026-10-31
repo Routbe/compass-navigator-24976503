@@ -228,7 +228,7 @@ function AuthorizePage() {
   async function choose(allow: boolean) {
     setBusy(true);
     try {
-      const result = await decide({ data: { ...payload, allow, richIdentityOptIn: richOptIn, emailChoice: emailChoice ?? prompt?.emailChoice, declinedScopes: declined } });
+      const result = await decide({ data: { ...payload, allow, richIdentityOptIn: richOptIn, emailChoice: emailChoice ?? prompt?.emailChoice, declinedScopes: prompt?.trustedKycPartner ? declined : [...declined, "identity:national_id"] } });
       if ("redirectTo" in result) window.location.href = result.redirectTo;
       else if (result.error.startsWith(t("auth.confirm"))) {
         setStepUpDone(false);
