@@ -196,5 +196,10 @@
   "auth.consent.emailPick": "Which e-mail address does this app get?",
   "auth.consent.email.primary": "Primary e-mail address",
   "auth.consent.email.alias": "Extra e-mail address",
-  "auth.consent.email.relay": "ROUT Private Relay (the app never sees your real address)"
+  "auth.consent.email.relay": "ROUT Private Relay (the app never sees your real address)",
+  "auth.scope.sybil": "Proof that you are one unique human — prevents duplicate accounts on {{app}}, no personal data",
+  "auth.scope.profileRead": "Public profile (handle, avatar, bio)",
+  "auth.scope.legalName": "Official legal name (requires verified identity)",
+  "auth.scope.nationalId": "National registry number — trusted partners only, needs extra confirmation",
+  "auth.consent.trustedPartner": "This app is a trusted ROUT identity partner."
 }

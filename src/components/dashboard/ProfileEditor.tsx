@@ -1242,7 +1242,7 @@ export function ProfileEditor({ variant = "verified", pageMode = "profile", onPa
           )}
           {tab === "design" && (
             <section className="mt-3 space-y-4 rounded-2xl border border-border bg-card p-4 sm:p-5">
-              {([["cardEffects","studio.effects.title","studio.effects.help"],["steamPresence","studio.effects.steam","studio.effects.steamHelp"]] as const).map(([k,title,help]) => (
+              {([["cardEffects","studio.effects.title","studio.effects.help"],["steamPresence","studio.effects.steam","studio.effects.steamHelp"],["lastfmPresence","studio.effects.lastfm","studio.effects.lastfmHelp"]] as const).map(([k,title,help]) => (
                 <div key={k} className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{t(title)}</p>

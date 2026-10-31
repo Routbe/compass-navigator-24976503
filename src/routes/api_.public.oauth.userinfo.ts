@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 
 /**
  * Userinfo-endpoint: geeft de claims terug die bij de scopes van het
- * access-token horen. `sub` blijft altijd het interne ROUT-gebruikers-id.
+ * access-token horen. `sub` is het (pairwise) subject uit het token; het interne id verlaat de server nooit.
  */
 export const Route = createFileRoute("/api_/public/oauth/userinfo")({
   server: {
@@ -35,11 +35,18 @@ async function handle(request: Request): Promise<Response> {
     );
   }
   try {
-    const { verifyAccessToken, identityClaims, getClientByClientId } = await import("@/lib/oauth/provider.server");
-    const { sub, userId, scopes, clientId } = await verifyAccessToken(auth.slice(7).trim());
-    const client = clientId ? await getClientByClientId(clientId) : null;
-    const claims = await identityClaims(userId, scopes, { handleSync: Boolean(client?.handleSyncEnabled), clientId: clientId ?? null });
-    return Response.json({ sub, ...claims }, { headers });
+    const { verifyAccessToken } = await import("@/lib/oauth/provider.server");
+    const { sub, userId, scopes, clientId, acr } = await verifyAccessToken(auth.slice(7).trim());
+    const { generateUserInfoResponse, ScopeForbiddenError } = await import("@/lib/auth/oidc-identifiers.server");
+    try {
+      const ip = request.headers.get("cf-connecting-ip") ?? request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null;
+      return Response.json(await generateUserInfoResponse(userId, clientId ?? "", scopes, { sub, acr, ip }), { headers });
+    } catch (e) {
+      if (e instanceof ScopeForbiddenError) {
+        return Response.json({ error: "insufficient_scope", error_description: e.code }, { status: 403, headers });
+      }
+      throw e;
+    }
   } catch (error) {
     const known = error as { message?: string };
     return Response.json(

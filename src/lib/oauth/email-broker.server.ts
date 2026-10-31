@@ -41,7 +41,15 @@ export async function appEmailFor(userId: string, clientId: string | null): Prom
   if (!clientId) return resolveAppEmail(null, options);
   const r = ((await sql`select a.source, a.alias_id, a.assigned_email
     from public.app_email_assignments a where a.user_id = ${userId} and a.client_id = ${clientId} limit 1`) as Row[])[0];
-  if (!r) return resolveAppEmail(null, options);
+  if (!r) {
+    // First request from this app: record the primary as its initial assignment.
+    const first = resolveAppEmail(null, options);
+    if (first?.source === "primary") {
+      await sql`insert into public.app_email_assignments (user_id, client_id, source, alias_id, assigned_email, updated_at)
+        values (${userId}, ${clientId}, 'primary', null, ${first.email}, now()) on conflict (user_id, client_id) do nothing`;
+    }
+    return first;
+  }
   const source = r["source"] as EmailSource;
   // A chosen relay stays the app's address even when forwarding is paused or the
   // secret is missing here: the real address is never handed out instead.

@@ -167,6 +167,20 @@ export const rotateOAuthSecret = createServerFn({ method: "POST" })
     });
   });
 
+/** Back-channel email sync webhook (https only, no internal hosts). Returns the signing secret once. */
+export const setOAuthBackchannelWebhook = createServerFn({ method: "POST" })
+  .middleware([requireDeveloperAccess])
+  .inputValidator((data: unknown) => z.object({ id: z.string().uuid(), url: z.string().url().max(2048).nullable() }).parse(data))
+  .handler(async ({ data, context }) => {
+    await assertVerified(context.userId);
+    const { sql } = await import("@/lib/neon");
+    const rows = (await sql`select client_id from public.oauth_clients where id = ${data.id} and owner_user_id = ${context.userId} limit 1`) as Record<string, unknown>[];
+    const clientId = rows[0]?.["client_id"];
+    if (typeof clientId !== "string") throw new Error("App niet gevonden.");
+    const { setBackchannelWebhook } = await import("@/lib/auth/email-sync-webhook.server");
+    return setBackchannelWebhook(clientId, data.url);
+  });
+
 export const getOAuthClientInsights = createServerFn({ method: "POST" })
   .middleware([requireDeveloperAccess])
   .inputValidator((data: unknown) => idSchema.parse(data))
@@ -310,6 +324,7 @@ export type AuthorizePrompt = {
   alreadyGranted?: boolean;
   /** Strict flow / prompt=login / max_age / acr_values → extra code required. */
   requiresStepUp?: boolean;
+  trustedKycPartner?: boolean;
   /** App asks (optionally) for public activity. */
   richIdentity?: boolean;
 };
@@ -439,15 +454,19 @@ export const describeAuthorizeRequest = createServerFn({ method: "POST" })
         }
       })()),
       alreadyGranted: await hasConsent(context.userId, client.clientId, scopes),
-      requiresStepUp: stepUp,
+      requiresStepUp: stepUp || scopes.includes("identity:national_id"),
       richIdentity: client.richIdentityEnabled,
+      trustedKycPartner: await (async () => {
+        const { isTrustedKycPartner } = await import("./provider.server");
+        return isTrustedKycPartner(client.clientId).catch(() => false);
+      })(),
     };
   });
 
 export const decideAuthorizeRequest = createServerFn({ method: "POST" })
   .middleware([requireAuth])
   .inputValidator((data: unknown) =>
-    authorizeSchema.extend({ allow: z.boolean(), richIdentityOptIn: z.boolean().optional(), emailChoice: z.string().max(64).optional() }).parse(data),
+    authorizeSchema.extend({ allow: z.boolean(), richIdentityOptIn: z.boolean().optional(), emailChoice: z.string().max(64).optional(), declinedScopes: z.array(z.string().max(64)).max(20).optional() }).parse(data),
   )
   .handler(async ({ data, context }): Promise<{ redirectTo: string } | { error: string }> => {
     {
@@ -458,7 +477,15 @@ export const decideAuthorizeRequest = createServerFn({ method: "POST" })
     }
     const checked = await checkRequest(data);
     if ("error" in checked) return { error: checked.error ?? "Ongeldige aanvraag." };
-    const { client, scopes, stepUp } = checked;
+    const { client, stepUp: baseStepUp } = checked;
+    const { applyConsentToggles } = await import("./scope-rules");
+    const scopes = applyConsentToggles(checked.scopes, data.declinedScopes);
+    const { isTrustedKycPartner } = await import("./provider.server");
+    if (scopes.includes("identity:national_id") && !(await isTrustedKycPartner(client.clientId))) {
+      return { error: "Deze app mag je rijksregisternummer niet opvragen." };
+    }
+    // The national registry scope always needs a fresh step-up (passkey or code).
+    const stepUp = baseStepUp || scopes.includes("identity:national_id");
     const { issueAuthorizationCode, rememberConsent, userMayUseClient, consumeVerifiedStepUp } =
       await import("./provider.server");
     if ((data.prompt ?? "").split(" ").includes("none")) return { error: "prompt=none vereist het stille autorisatiepad." };
